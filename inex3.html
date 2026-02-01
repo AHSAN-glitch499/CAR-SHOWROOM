@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHADOW DRIVE | Command & Control v6.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@300;400;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background: #000; color: #fff; overflow-x: hidden; }
+        .logo-font { font-family: 'Syncopate', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(10, 10, 10, 0.8); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.05); }
+        .ticker-wrap { position: fixed; bottom: 0; width: 100%; overflow: hidden; height: 35px; background: rgba(0,0,0,0.9); border-top: 1px solid rgba(220,38,38,0.3); z-index: 1000; display: flex; align-items: center; }
+        .ticker { white-space: nowrap; animation: tickerScroll 40s linear infinite; }
+        @keyframes tickerScroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        .btn-action { background: linear-gradient(45deg, #cc0000, #ff0000); transition: 0.3s; }
+        .btn-action:hover { box-shadow: 0 0 20px rgba(220, 38, 38, 0.6); transform: translateY(-2px); }
+        .status-badge { font-size: 8px; font-weight: 900; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+    </style>
+</head>
+<body class="selection:bg-red-600">
+
+    <nav class="fixed top-0 w-full z-[100] glass px-8 py-4 flex justify-between items-center border-b border-white/10">
+        <div class="flex items-center gap-5 cursor-pointer" onclick="showView('showroom')">
+            <div class="bg-red-600 p-2 rounded-lg font-black">S</div>
+            <div>
+                <h1 class="logo-font text-sm tracking-[0.4em] uppercase">Shadow_Drive</h1>
+                <p id="marketStatus" class="text-[8px] mono text-green-500 font-bold uppercase tracking-widest">Market: Stable</p>
+            </div>
+        </div>
+        <div class="flex gap-4">
+            <button onclick="showView('userOrders')" class="text-[10px] font-black uppercase tracking-widest bg-zinc-900 px-4 py-2 rounded">My Orders</button>
+            <button onclick="showView('login')" id="adminLabel" class="text-[10px] font-black uppercase tracking-widest border border-white/10 px-6 py-2.5 rounded hover:bg-white hover:text-black transition">Master Terminal</button>
+        </div>
+    </nav>
+
+    <section id="adminView" class="hidden pt-28 px-6 max-w-[1600px] mx-auto pb-40">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+            <div class="glass p-6 rounded-2xl border-l-4 border-red-600">
+                <p class="text-[10px] text-zinc-500 uppercase font-black mb-1">Company Net Worth</p>
+                <h2 id="netWorth" class="text-3xl font-black italic">$0</h2>
+            </div>
+            <div class="glass p-6 rounded-2xl border-l-4 border-green-500">
+                <p class="text-[10px] text-zinc-500 uppercase font-black mb-1">Liquid Revenue</p>
+                <h2 id="totalRev" class="text-3xl font-black italic">$0</h2>
+            </div>
+            <div class="glass p-6 rounded-2xl border-l-4 border-blue-500">
+                <p class="text-[10px] text-zinc-500 uppercase font-black mb-1">Active Units</p>
+                <h2 id="activeOrdersCount" class="text-3xl font-black italic">0</h2>
+            </div>
+            <div class="glass p-6 rounded-2xl border-l-4 border-purple-600">
+                <p class="text-[10px] text-zinc-500 uppercase font-black mb-1">Market Multiplier</p>
+                <h2 id="marketMultText" class="text-3xl font-black italic">1.0x</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-8">
+                <div class="glass p-8 rounded-3xl mb-8">
+                    <canvas id="wealthChart" height="100"></canvas>
+                </div>
+                <h3 class="text-xs font-black uppercase mb-4 tracking-widest text-zinc-500">Fleet Operations Queue</h3>
+                <div id="adminOrderStream" class="space-y-4"></div>
+            </div>
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass p-8 rounded-3xl border-red-600/20">
+                    <h3 class="text-xs font-black uppercase mb-4 text-red-500">Market Override</h3>
+                    <button onclick="manipulateMarket()" class="w-full bg-red-600 py-4 rounded-xl text-[10px] font-black uppercase mb-4">Trigger Price Surge</button>
+                    <button onclick="localStorage.clear(); location.reload();" class="w-full bg-zinc-800 py-2 rounded-xl text-[9px] font-black uppercase text-zinc-500">Wipe Data</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="userOrdersView" class="hidden pt-32 px-8 max-w-4xl mx-auto">
+        <h2 class="text-4xl font-black italic uppercase mb-10">Your <span class="text-red-600">Fleet</span></h2>
+        <div id="userOrderStream" class="space-y-6"></div>
+    </section>
+
+    <main id="showroomView" class="pt-32 pb-40 px-8">
+        <div class="max-w-[1700px] mx-auto">
+            <div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+                <div>
+                    <h2 class="text-7xl font-black uppercase italic tracking-tighter opacity-10 leading-none">SHADOW</h2>
+                    <h3 class="text-4xl font-black uppercase -mt-10">Available <span class="text-red-600">Assets</span></h3>
+                </div>
+                <div class="glass px-8 py-4 rounded-2xl text-center">
+                    <p class="text-[8px] font-black uppercase text-zinc-500">Total Stock</p>
+                    <p id="invCount" class="text-xl font-black italic">50</p>
+                </div>
+            </div>
+            <div id="carGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"></div>
+        </div>
+    </main>
+
+    <div id="payModal" class="fixed inset-0 z-[200] hidden bg-black/98 backdrop-blur-3xl flex items-center justify-center p-4">
+        <div class="glass p-10 rounded-[3rem] w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <div class="space-y-6">
+                <h3 id="mTitle" class="text-4xl font-black italic uppercase"></h3>
+                <div class="space-y-4">
+                    <input id="cName" type="text" placeholder="Full Legal Name" class="w-full bg-zinc-900 p-4 rounded-xl border border-white/5 outline-none focus:border-red-600">
+                    <input id="cPhone" type="text" placeholder="Contact Number" class="w-full bg-zinc-900 p-4 rounded-xl border border-white/5 outline-none focus:border-red-600">
+                    <textarea id="cAddress" placeholder="Detailed Shipping Address" class="w-full bg-zinc-900 p-4 rounded-xl border border-white/5 outline-none focus:border-red-600 h-24"></textarea>
+                    <input id="cZip" type="text" placeholder="Postal / ZIP Code" class="w-full bg-zinc-900 p-4 rounded-xl border border-white/5 outline-none focus:border-red-600">
+                </div>
+            </div>
+            <div class="bg-zinc-900/40 p-10 rounded-[2.5rem] flex flex-col justify-between">
+                <div>
+                    <p class="text-zinc-500 text-[10px] font-black uppercase mb-2">Final Investment</p>
+                    <h4 id="mPrice" class="text-5xl font-black italic mb-8"></h4>
+                    <ul class="text-[10px] text-zinc-500 space-y-2 mono uppercase">
+                        <li>● 24/7 Satellite Tracking</li>
+                        <li>● Global Air Freight</li>
+                        <li>● Encrypted Logistics</li>
+                    </ul>
+                </div>
+                <button onclick="finalizeOrder()" class="btn-action w-full py-6 rounded-2xl font-black uppercase text-sm mt-8">Confirm Acquisition</button>
+                <button onclick="closeModal()" class="w-full text-zinc-600 text-[10px] font-black uppercase mt-4">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="ticker-wrap">
+        <div class="ticker" id="newsTicker">
+            <span class="news-item px-10 text-[10px] mono font-bold uppercase text-red-500 tracking-widest">● ESTABLISHING SECURE CONNECTION ●</span>
+        </div>
+    </div>
+
+    <section id="loginView" class="hidden flex items-center justify-center h-screen">
+        <div class="glass p-16 rounded-[4rem] w-full max-w-lg text-center">
+            <h2 class="logo-font text-2xl mb-10 tracking-[0.4em]">SYSTEM_AUTH</h2>
+            <div class="space-y-4">
+                <input id="u" type="text" placeholder="ADMIN_ID" class="w-full bg-zinc-900 p-5 rounded-2xl text-center mono outline-none">
+                <input id="p" type="password" placeholder="PASS_KEY" class="w-full bg-zinc-900 p-5 rounded-2xl text-center mono outline-none">
+                <button onclick="login()" class="w-full btn-action py-5 rounded-2xl font-black uppercase text-sm mt-4">Login</button>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        let orders = JSON.parse(localStorage.getItem('sh_v6_orders')) || [];
+        let wealthHistory = JSON.parse(localStorage.getItem('sh_v6_wealth')) || [0];
+        let currentCar = null;
+        let chartInstance = null;
+        let marketMult = 1.0;
+
+        const CARS = Array.from({ length: 50 }, (_, i) => ({
+            id: 200 + i,
+            name: `SHADOW ${['SPECTRE', 'ZENITH', 'NOMAD', 'APEX', 'GHOST'][i % 5]} V.${i+1}`,
+            basePrice: 165000 + (i * 2800),
+            img: `https://images.unsplash.com/photo-1503376780353-7e6692767b70?q=80&w=600&auto=format&fit=crop&sig=${i}`
+        }));
+
+        function init() {
+            renderCars();
+            updateAdmin();
+            updateUserOrders();
+            if(!chartInstance) initChart();
+        }
+
+        function renderCars() {
+            const grid = document.getElementById('carGrid');
+            grid.innerHTML = CARS.map(c => {
+                const livePrice = Math.round(c.basePrice * marketMult);
+                return `
+                <div class="glass rounded-[2rem] overflow-hidden group hover:border-red-600 transition-all">
+                    <img src="${c.img}" class="w-full h-56 object-cover grayscale group-hover:grayscale-0 transition duration-700">
+                    <div class="p-8">
+                        <h3 class="text-xl font-black italic uppercase mb-6">${c.name}</h3>
+                        <div class="flex justify-between items-end border-t border-white/5 pt-6">
+                            <div><p class="text-[8px] text-zinc-500 font-black mb-1 uppercase">Price</p><p class="text-2xl font-black italic">$${livePrice.toLocaleString()}</p></div>
+                            <button onclick="openPay(${c.id})" class="bg-white text-black px-6 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-red-600 hover:text-white transition">Order</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function openPay(id) {
+            currentCar = CARS.find(c => c.id === id);
+            document.getElementById('mTitle').innerText = currentCar.name;
+            document.getElementById('mPrice').innerText = `$${Math.round(currentCar.basePrice * marketMult).toLocaleString()}`;
+            document.getElementById('payModal').classList.remove('hidden');
+        }
+
+        function finalizeOrder() {
+            const name = document.getElementById('cName').value;
+            const phone = document.getElementById('cPhone').value;
+            const address = document.getElementById('cAddress').value;
+            if(!name || !phone || !address) return alert("COMPLETE ALL LOGISTICS FIELDS");
+
+            const order = {
+                id: Date.now(),
+                car: currentCar.name,
+                price: Math.round(currentCar.basePrice * marketMult),
+                client: name,
+                phone: phone,
+                address: address,
+                zip: document.getElementById('cZip').value,
+                status: 'Under Process',
+                date: new Date().toLocaleString()
+            };
+
+            orders.unshift(order);
+            save();
+            closeModal();
+            updateAdmin();
+            updateUserOrders();
+            alert("ORDER REGISTERED. TRACK IN 'MY ORDERS'.");
+        }
+
+        function updateAdmin() {
+            let rev = 0;
+            const stream = document.getElementById('adminOrderStream');
+            stream.innerHTML = orders.map(o => {
+                if(o.status !== 'Cancelled') rev += o.price;
+                const sColor = { 'Under Process': 'bg-yellow-500/20 text-yellow-500', 'Shipped': 'bg-blue-500/20 text-blue-500', 'Delivered': 'bg-green-500/20 text-green-500', 'Cancelled': 'bg-red-500/20 text-red-500' }[o.status];
+
+                return `<div class="glass p-6 rounded-2xl flex flex-col lg:flex-row justify-between items-center gap-6 border-l-2 border-red-600">
+                    <div class="flex-1">
+                        <div class="flex gap-2 mb-2"><span class="status-badge ${sColor}">${o.status}</span><span class="mono text-[8px] text-zinc-600">#${o.id}</span></div>
+                        <h4 class="text-lg font-black italic uppercase">${o.car}</h4>
+                        <p class="text-[9px] text-zinc-500 font-bold">CLIENT: ${o.client} | ADDR: ${o.address}</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right"><p class="text-xl font-black italic">$${o.price.toLocaleString()}</p></div>
+                        <div class="flex gap-1">
+                            <select onchange="updateStatus(${o.id}, this.value)" class="bg-zinc-900 text-[8px] font-black uppercase p-2 rounded outline-none border border-white/10">
+                                <option value="" disabled selected>SET STATUS</option>
+                                <option value="Under Process">Process</option>
+                                <option value="Shipped">Ship</option>
+                                <option value="Delivered">Deliver</option>
+                                <option value="Cancelled">Cancel</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            const tax = rev * 0.20;
+            const netWorth = (rev - tax) + ((50 - orders.filter(x => x.status !== 'Cancelled').length) * 150000 * marketMult);
+            
+            document.getElementById('totalRev').innerText = `$${rev.toLocaleString()}`;
+            document.getElementById('netWorth').innerText = `$${Math.round(netWorth).toLocaleString()}`;
+            document.getElementById('activeOrdersCount').innerText = orders.filter(x => x.status !== 'Cancelled' && x.status !== 'Delivered').length;
+            document.getElementById('marketMultText').innerText = marketMult.toFixed(2) + "x";
+            
+            wealthHistory.push(netWorth);
+            if(wealthHistory.length > 20) wealthHistory.shift();
+            save();
+            if(chartInstance) { chartInstance.data.labels = wealthHistory.map((_, i) => i); chartInstance.data.datasets[0].data = wealthHistory; chartInstance.update(); }
+        }
+
+        function updateUserOrders() {
+            const stream = document.getElementById('userOrderStream');
+            stream.innerHTML = orders.map(o => `
+                <div class="glass p-8 rounded-3xl flex justify-between items-center border border-white/5">
+                    <div>
+                        <p class="text-[10px] text-zinc-500 mono mb-2 uppercase tracking-widest">${o.date}</p>
+                        <h4 class="text-2xl font-black italic uppercase">${o.car}</h4>
+                        <div class="flex items-center gap-4 mt-2">
+                            <span class="status-badge bg-white/5 text-zinc-400 border border-white/10">${o.status}</span>
+                            <span class="text-[10px] font-bold text-red-600">$${o.price.toLocaleString()}</span>
+                        </div>
+                    </div>
+                    ${o.status === 'Under Process' ? `<button onclick="updateStatus(${o.id}, 'Cancelled')" class="text-[10px] font-black uppercase border border-red-600/30 px-6 py-2 rounded hover:bg-red-600 transition">Cancel Order</button>` : ''}
+                </div>
+            `).join('') || `<p class="text-center text-zinc-600 py-20 italic">No fleet units acquired yet.</p>`;
+        }
+
+        function updateStatus(id, s) {
+            const o = orders.find(x => x.id === id);
+            if(o) {
+                o.status = s;
+                save();
+                updateAdmin();
+                updateUserOrders();
+                if(s === 'Cancelled') alert("ORDER VOIDED. FINANCIALS UPDATED.");
+            }
+        }
+
+        function runMarket() {
+            const events = [
+                { n: "STABLE", i: 1.0, c: "text-green-500", m: "MARKET OPERATING WITHIN NOMINAL PARAMETERS" },
+                { n: "SURGE", i: 1.4, c: "text-blue-500", m: "HIGH DEMAND DETECTED IN ASIAN MARKETS. PRICES UP 40%" },
+                { n: "CRASH", i: 0.8, c: "text-red-500", m: "LUXURY TAX REFORM TRIGGERED. ASSET VALUE DOWN 20%" }
+            ];
+            const e = events[Math.floor(Math.random() * events.length)];
+            marketMult = e.i;
+            document.getElementById('newsTicker').innerHTML = `<span class="news-item px-10 text-[10px] mono font-bold uppercase ${e.c}">● ${e.n}: ${e.m} ●</span>`.repeat(5);
+            init();
+        }
+
+        function save() {
+            localStorage.setItem('sh_v6_orders', JSON.stringify(orders));
+            localStorage.setItem('sh_v6_wealth', JSON.stringify(wealthHistory));
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('wealthChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: wealthHistory.map((_, i) => i), datasets: [{ data: wealthHistory, borderColor: '#ff0000', borderWidth: 2, tension: 0.4, pointRadius: 0, fill: true, backgroundColor: 'rgba(255,0,0,0.05)' }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+            });
+        }
+
+        function login() {
+            if(document.getElementById('u').value === "ROOT" && document.getElementById('p').value === "9999") showView('admin');
+            else alert("AUTH FAILED");
+        }
+
+        function showView(v) {
+            ['showroomView', 'adminView', 'loginView', 'userOrdersView'].forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.add('hidden');
+            });
+            document.getElementById(v + 'View').classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('payModal').classList.add('hidden'); }
+        setInterval(runMarket, 45000);
+        runMarket();
+        init();
+    </script>
+</body>
+</html>
